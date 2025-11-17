@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#FFFFFF">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="I996 Tunnel Client"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:layout_marginBottom="24dp"
+        android:layout_gravity="center_horizontal" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Server Address:"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/serverAddrInput"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:hint="e.g., 192.168.1.100:3333"
+        android:inputType="text"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="#F0F0F0"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Client ID:"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/clientIdInput"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:hint="e.g., testid"
+        android:inputType="text"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="#F0F0F0"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Certificate (Optional):"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/certPemInput"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:hint="Paste certificate PEM here (optional)"
+        android:inputType="textMultiLine"
+        android:gravity="top|start"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="12dp"
+        android:background="#F0F0F0"
+        android:scrollbars="vertical"
+        android:layout_marginBottom="24dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="Start Tunnel"
+            android:textSize="16sp"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="Stop Tunnel"
+            android:textSize="16sp"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Status: Not started"
+        android:textSize="16sp"
+        android:textColor="#666666"
+        android:padding="12dp"
+        android:background="#F5F5F5"
+        android:layout_marginTop="16dp"
+        android:gravity="center" />
+
+</LinearLayout>

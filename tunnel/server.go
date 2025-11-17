@@ -33,7 +33,11 @@ func httpserver() {
 			return
 		}
 
-		transport, _ := GetHTTPTransport(tid, "", "")
+		transport, err := GetHTTPTransport(tid, "", "")
+		if err != nil {
+			http.Error(w, "invalid target", http.StatusInternalServerError)
+			return
+		}
 
 		// 创建反向代理
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
