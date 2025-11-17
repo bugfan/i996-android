@@ -31,13 +31,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Tunnel Proxy Service -->
-        <service
-            android:name=".tunnel.TunnelProxyService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
     </application>
 
 </manifest>

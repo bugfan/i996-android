@@ -8,7 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.sean.i996.R
 
-class SimpleTunnelActivity : AppCompatActivity(), TunnelClient.TunnelConnectionListener {
+class SimpleTunnelActivity : AppCompatActivity(), TunnelClientSimple.TunnelConnectionListener {
 
     private lateinit var serverAddressEditText: EditText
     private lateinit var clientIdEditText: EditText
@@ -16,7 +16,7 @@ class SimpleTunnelActivity : AppCompatActivity(), TunnelClient.TunnelConnectionL
     private lateinit var disconnectButton: Button
     private lateinit var statusTextView: TextView
 
-    private var tunnelClient: TunnelClient? = null
+    private var tunnelClient: TunnelClientSimple? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +54,7 @@ class SimpleTunnelActivity : AppCompatActivity(), TunnelClient.TunnelConnectionL
                 disconnectButton.isEnabled = true
 
                 // 创建并连接隧道客户端
-                tunnelClient = TunnelClient(serverAddr, clientId)
+                tunnelClient = TunnelClientSimple(serverAddr, clientId)
                 tunnelClient?.setListener(this)
 
                 // 在后台线程连接
