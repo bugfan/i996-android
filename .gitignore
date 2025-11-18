@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+mobileclient-sources.jar
+mobileclient.aar
+app/src/main/assets/
