@@ -197,10 +197,12 @@ func ListenTunnel(addr string, tlsConfig *tls.Config) {
 		}
 		fmt.Printf("accepted tunnel\n")
 		go func(f *conn.FrameConn) {
+			time.Sleep(200 * time.Millisecond)
+			fmt.Printf("开始获取 info\n")
 			info := f.Info()
-			fmt.Printf("tunnel info %#v\n", info)
+			fmt.Printf("获取到 info: %#v\n", info)
 			if info == nil {
-				fmt.Printf("cannot get info\n")
+				fmt.Printf("info 为 nil，关闭连接\n")
 				f.Close()
 				return
 			}
