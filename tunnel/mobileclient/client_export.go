@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	// 确保这里的导入路径与您的 go.mod 保持一致
 	"github.com/bugfan/i996-android/tunnel/conn"
 )
 
@@ -19,125 +18,237 @@ type Client struct {
 	tlsConfig  *tls.Config
 	stopCh     chan struct{}
 	wg         sync.WaitGroup
-	// 状态报告（可选，用于安卓端显示）
-	statusCh chan string
+	statusCh   chan string
+	frameConn  *conn.FrameConn
+	mu         sync.Mutex
 }
 
-// NewClient 是导出的构造函数，用于创建 Client 实例
-// certPEM 必须是您的 cert.pem 文件的内容
-func NewClient(serverAddr string, clientID string, certPEM string) *Client {
-	// 1. 加载 TLS 配置
-	tlsConfig := LoadTLSConfigFromBytes([]byte(certPEM))
-	if tlsConfig != nil {
-		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(5000)
+// NewClient 创建新的客户端实例
+// serverAddr: 服务器地址，例如 "192.168.1.130:3333"
+// clientID: 客户端ID，例如 "testid"
+// certPEM: 证书内容（字符串形式）
+func NewClient(serverAddr string, clientID string, certPEM string) (*Client, error) {
+	if serverAddr == "" {
+		return nil, fmt.Errorf("serverAddr cannot be empty")
+	}
+	if clientID == "" {
+		return nil, fmt.Errorf("clientID cannot be empty")
+	}
+	if certPEM == "" {
+		return nil, fmt.Errorf("certPEM cannot be empty")
 	}
 
-	// 2. 创建 Client 实例
+	// 加载 TLS 配置
+	tlsConfig := loadTLSConfigFromBytes([]byte(certPEM))
+	if tlsConfig == nil {
+		return nil, fmt.Errorf("failed to load TLS config from certificate")
+	}
+	tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(5000)
+
 	c := &Client{
 		id:         clientID,
 		serverAddr: serverAddr,
 		tlsConfig:  tlsConfig,
 		stopCh:     make(chan struct{}),
-		statusCh:   make(chan string, 10), // 缓冲通道用于状态报告
+		statusCh:   make(chan string, 100),
 	}
-	return c
+
+	c.reportStatus(fmt.Sprintf("Client created for %s with ID %s", serverAddr, clientID))
+	return c, nil
 }
 
-// Start 在后台 goroutine 中运行客户端连接循环
-func (c *Client) Start() {
-	c.reportStatus("Starting tunnel client...")
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		for {
-			err := c.runOnce()
-			if err != nil {
-				c.reportStatus(fmt.Sprintf("Tunnel client loop error: %s. Retrying in 10s...", err.Error()))
-			} else {
-				c.reportStatus("Tunnel loop finished gracefully. Retrying in 10s...")
-			}
+// Start 启动客户端（在后台 goroutine 中运行）
+func (c *Client) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-			select {
-			case <-c.stopCh:
-				c.reportStatus("Tunnel client stopped by user command.")
-				return
-			case <-time.After(10 * time.Second):
-				// 继续下一次重试
-			}
-		}
-	}()
-}
-
-// Stop 停止客户端循环并等待所有 goroutine 退出
-func (c *Client) Stop() {
-	close(c.stopCh)
-	c.wg.Wait()
-	c.reportStatus("Tunnel client fully shut down.")
-}
-
-// GetStatusChannel 返回一个只读通道，用于 Android 接收 Go 运行时的状态消息
-func (c *Client) GetStatusChannel() <-chan string {
-	return c.statusCh
-}
-
-func (c *Client) reportStatus(msg string) {
-	// 非阻塞发送状态，如果通道满了则丢弃旧消息
+	// 检查是否已经启动
 	select {
-	case c.statusCh <- msg:
+	case <-c.stopCh:
+		return fmt.Errorf("client already stopped")
 	default:
 	}
-	fmt.Println(msg) // 同时也打印到 Go 侧标准输出
+
+	c.reportStatus("Starting tunnel client...")
+	c.wg.Add(1)
+	go c.runLoop()
+
+	return nil
 }
 
-// runOnce 负责一次连接尝试和隧道主循环
+// Stop 停止客户端
+func (c *Client) Stop() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// 关闭 stopCh（如果还没关闭）
+	select {
+	case <-c.stopCh:
+		// 已经关闭了
+		return
+	default:
+		close(c.stopCh)
+	}
+
+	// 关闭当前连接
+	if c.frameConn != nil {
+		c.frameConn.Close()
+	}
+
+	c.reportStatus("Stopping tunnel client...")
+	c.wg.Wait()
+	c.reportStatus("Tunnel client stopped")
+
+	// 关闭状态通道
+	close(c.statusCh)
+}
+
+// GetStatus 获取下一个状态消息（阻塞调用）
+// 返回空字符串表示通道已关闭
+func (c *Client) GetStatus() string {
+	msg, ok := <-c.statusCh
+	if !ok {
+		return ""
+	}
+	return msg
+}
+
+// IsRunning 检查客户端是否正在运行
+func (c *Client) IsRunning() bool {
+	select {
+	case <-c.stopCh:
+		return false
+	default:
+		return true
+	}
+}
+
+// GetServerAddr 获取服务器地址
+func (c *Client) GetServerAddr() string {
+	return c.serverAddr
+}
+
+// GetClientID 获取客户端ID
+func (c *Client) GetClientID() string {
+	return c.id
+}
+
+// 内部方法：主循环
+func (c *Client) runLoop() {
+	defer c.wg.Done()
+
+	for {
+		// 检查是否需要停止
+		select {
+		case <-c.stopCh:
+			c.reportStatus("Tunnel client stopped by user")
+			return
+		default:
+		}
+
+		// 尝试连接并运行
+		err := c.runOnce()
+		if err != nil {
+			c.reportStatus(fmt.Sprintf("Connection error: %s. Retrying in 10s...", err.Error()))
+		} else {
+			c.reportStatus("Connection closed gracefully. Retrying in 10s...")
+		}
+
+		// 等待后重试
+		select {
+		case <-c.stopCh:
+			c.reportStatus("Tunnel client stopped during retry wait")
+			return
+		case <-time.After(10 * time.Second):
+			// 继续下一次重试
+		}
+	}
+}
+
+// 内部方法：单次连接尝试
 func (c *Client) runOnce() error {
-	// 使用 conn.go 提供的 DialTLS
+	// 建立 TLS 连接
+	c.reportStatus(fmt.Sprintf("Connecting to %s...", c.serverAddr))
 	fc, err := conn.DialTLS("tcp", c.serverAddr, c.tlsConfig)
 	if err != nil {
 		return fmt.Errorf("DialTLS error: %w", err)
 	}
-	c.reportStatus(fmt.Sprintf("Connected with %s", c.serverAddr))
 
-	// 发送 Info 包进行注册
+	c.mu.Lock()
+	c.frameConn = fc
+	c.mu.Unlock()
+
+	c.reportStatus(fmt.Sprintf("Connected to %s successfully", c.serverAddr))
+
+	// 发送客户端信息
 	fc.SetInfo(&conn.Info{
 		ID: c.id,
 	})
+	c.reportStatus(fmt.Sprintf("Registered with ID: %s", c.id))
 
-	// 接受服务器请求的主循环 (对应 client.go 的 Run() 内部循环)
+	// 主循环：接受服务器请求
 	for {
-		c.reportStatus(fmt.Sprintf("Accepting connections from server %s", c.serverAddr))
-
+		// 检查是否需要停止
 		select {
 		case <-c.stopCh:
-			fc.Close() // 收到停止信号，关闭连接以解锁 Accept
+			fc.Close()
 			return nil
 		default:
-			// continue
 		}
 
+		c.reportStatus("Waiting for server requests...")
 		serverConn, err := fc.Accept()
+
 		if err == io.EOF {
-			c.reportStatus("Tunnel closed gracefully.")
-			break // 跳出 runOnce 内部循环，进入外层重试
-		}
-		if err != nil {
-			return fmt.Errorf("Tunnel Accept error: %w", err)
+			c.reportStatus("Server closed connection")
+			return nil
 		}
 
-		// 启动 goroutine 处理代理转发 (Proxy)
-		go func(c *conn.Conn) {
-			c.Proxy()
-			// c.reportStatus(fmt.Sprintf("Proxy session done for connection ID %d", c.ID()))
+		if err != nil {
+			return fmt.Errorf("Accept error: %w", err)
+		}
+
+		c.reportStatus("Received proxy request from server")
+
+		// 启动 goroutine 处理代理
+		go func(conn *conn.Conn) {
+			defer func() {
+				if r := recover(); r != nil {
+					c.reportStatus(fmt.Sprintf("Proxy panic: %v", r))
+				}
+			}()
+
+			err := conn.Proxy()
+			if err != nil {
+				c.reportStatus(fmt.Sprintf("Proxy error: %s", err.Error()))
+			} else {
+				c.reportStatus("Proxy session completed")
+			}
 		}(serverConn)
 	}
-	return nil
 }
 
-// LoadTLSConfigFromBytes 是从 client.go 提取的辅助函数
-func LoadTLSConfigFromBytes(certPEM []byte) *tls.Config {
+// 内部方法：报告状态
+func (c *Client) reportStatus(msg string) {
+	timestamp := time.Now().Format("15:04:05")
+	fullMsg := fmt.Sprintf("[%s] %s", timestamp, msg)
+
+	// 非阻塞发送
+	select {
+	case c.statusCh <- fullMsg:
+	default:
+		// 通道满了，丢弃旧消息
+	}
+
+	// 同时打印到 Go 侧日志
+	fmt.Println(fullMsg)
+}
+
+// loadTLSConfigFromBytes 从 PEM 字节加载 TLS 配置
+func loadTLSConfigFromBytes(certPEM []byte) *tls.Config {
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(certPEM) {
-		fmt.Println("failed to append certs")
+		fmt.Println("Failed to append certs from PEM")
 		return nil
 	}
 

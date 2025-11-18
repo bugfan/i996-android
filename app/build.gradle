@@ -51,8 +51,9 @@ repositories {
 }
 
 dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
     // 2. 引用 .aar 文件
-    implementation files('libs/mobileclient.aar')
+//    implementation files('libs/mobileclient.aar')
 
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
