@@ -8,86 +8,113 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="隧道客户端"
+        android:text="I996 客户端"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_marginBottom="24dp"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="服务器地址:"
-        android:textSize="16sp"
-        android:layout_marginTop="8dp"/>
-
-    <EditText
-        android:id="@+id/etServerAddr"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="例如: 192.168.1.100:3333"
-        android:inputType="text"
         android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="客户端ID:"
+        android:text="Token:"
         android:textSize="16sp"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginBottom="8dp"/>
 
     <EditText
-        android:id="@+id/etClientId"
+        android:id="@+id/tokenInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="例如: testid"
+        android:hint="请输入 Token"
         android:inputType="text"
-        android:layout_marginBottom="24dp"/>
+        android:layout_marginBottom="12dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="16dp">
 
         <Button
-            android:id="@+id/btnConnect"
+            android:id="@+id/startButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="连接"
+            android:text="启动"
             android:layout_marginEnd="8dp"/>
 
         <Button
-            android:id="@+id/btnDisconnect"
+            android:id="@+id/stopButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="断开"
+            android:text="停止"
+            android:enabled="false"
             android:layout_marginStart="8dp"/>
     </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="状态: "
+            android:textSize="16sp"/>
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="已停止 🔴"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+
+        <Button
+            android:id="@+id/clearLogButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="清空日志"
+            android:textSize="12sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            style="?android:attr/borderlessButtonStyle"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#CCCCCC"
+        android:layout_marginBottom="12dp"/>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="状态:"
+        android:text="运行日志:"
         android:textSize="16sp"
         android:textStyle="bold"
         android:layout_marginBottom="8dp"/>
 
     <ScrollView
+        android:id="@+id/logScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:background="#F5F5F5"
-        android:padding="8dp">
+        android:padding="12dp"
+        android:scrollbars="vertical">
 
         <TextView
-            android:id="@+id/tvStatus"
+            android:id="@+id/logTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="未连接"
-            android:textSize="14sp"
-            android:fontFamily="monospace"/>
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textColor="#333333"
+            android:text="等待连接..."/>
     </ScrollView>
 
 </LinearLayout>
