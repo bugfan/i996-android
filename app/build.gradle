@@ -1,68 +1,49 @@
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace 'com.sean.i996'
-    compileSdk 34
+    namespace = "com.i996.nat"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId "com.sean.i996"
-        minSdk 26  // 从 24 改为 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        applicationId = "com.i996.nat"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
     }
 
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
+    buildFeatures {
+        viewBinding = true
     }
-    
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
-    
+
     kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
-    packagingOptions {
-        jniLibs {
-            // 如果你只编译了 arm64，则可以排除其他架构
-            // excludes += ['**/armeabi-v7a/**', '**/x86/**', '**/x86_64/**']
-        }
-    }
-}
-
-repositories {
-    // 确保这里包含你的默认仓库 (Google, MavenCentral, JCenter 等)
-    google()
-    mavenCentral()
-
-    // 【关键修改】: 定义本地 libs 目录作为一个 flatDir 仓库
-    flatDir {
-        dirs 'libs' // 指向 app/libs 文件夹
+        jvmTarget = "1.8"
     }
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
-    // 2. 引用 .aar 文件
-//    implementation files('libs/mobileclient.aar')
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-    
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
-    implementation("com.squareup.okio:okio:3.6.0")   // 最新稳定版
+    // 网络请求
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
+
+    // SSH库
+    implementation("com.jcraft:jsch:0.1.55")
+
+    // 协程
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
 }
