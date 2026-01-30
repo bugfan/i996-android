@@ -4,8 +4,8 @@ import android.app.*
 import android.content.Intent
 import android.os.*
 import androidx.core.app.NotificationCompat
-import com.sean.i996.libi996.libi996.I996Client
-import com.sean.i996.libi996.libi996.Logger
+import com.sean.i996.libi996.I996Client
+import com.sean.i996.libi996.Logger
 import kotlinx.coroutines.*
 import java.io.File
 

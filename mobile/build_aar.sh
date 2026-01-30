@@ -87,14 +87,14 @@ echo ""
 echo "4. 开始构建 AAR..."
 echo "   源文件: libi996.go"
 echo "   输出: libi996.aar"
-echo "   包名: com.sean.i996.libi996"
+echo "   包名: com.sean.i996"
 echo "   NDK: $ANDROID_NDK_HOME"
 echo ""
 
 gomobile bind -v -target=android \
     -androidapi 21 \
     -o ./libi996.aar \
-    -javapkg=com.sean.i996.libi996 \
+    -javapkg=com.sean.i996 \
     .
 
 if [ $? -eq 0 ]; then
