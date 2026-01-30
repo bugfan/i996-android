@@ -17,7 +17,5 @@ mobile/*-sources.jar
 .externalNativeBuild
 .cxx
 local.properties
-mobileclient-sources.jar
-mobileclient.aar
 .idea/kotlinc.xml
 mobile/libi996.aar
