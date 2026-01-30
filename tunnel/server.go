@@ -1,95 +1,33 @@
-package main
+package tunnel
 
 import (
 	"crypto/tls"
-	"math/rand"
-
 	"errors"
 	"fmt"
-	"log"
+	"math/rand"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
-	"os"
-	"path"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/bugfan/i996-android/tunnel/conn"
+	"github.com/bugfan/clotho/i996/engine/tcpmapping"
+	"github.com/bugfan/clotho/i996/engine/tunnel/cert"
+	"github.com/bugfan/clotho/i996/engine/tunnel/conn"
+	"github.com/bugfan/clotho/services/dao"
 )
 
-const (
-	tid = "testid"
-)
-
-func httpserver() {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		// 动态决定目标
-		targetURL, err := url.Parse("https://www.json.cn")
-		if err != nil {
-			http.Error(w, "invalid target", http.StatusInternalServerError)
-			return
-		}
-
-		transport, err := GetHTTPTransport(tid, "", "")
-		if err != nil {
-			http.Error(w, "invalid target", http.StatusInternalServerError)
-			return
-		}
-
-		// 创建反向代理
-		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
-		// 动态修改底层 transport
-		proxy.Transport = transport
-
-		// 你也可以在这里改 Header、日志、注入认证信息等
-		proxy.ModifyResponse = func(resp *http.Response) error {
-			resp.Header.Set("X-Proxy-By", "GoDynamicProxy")
-			return nil
-		}
-
-		// 转发
-		proxy.ServeHTTP(w, r)
-	}
-
-	srv := &http.Server{
-		Addr:    ":4444",
-		Handler: http.HandlerFunc(handler),
-	}
-
-	log.Println("Reverse proxy listening on :4444 (→ https://www.json.cn)")
-	log.Fatal(srv.ListenAndServe())
-}
-
-func main() {
-
-	// http server
-	go httpserver()
-
-	// tunnel server
-	keyPEM, err := os.ReadFile("cert/key.pem")
-	if err != nil {
-		fmt.Println("failed to read key.pem:", err)
-		return
-	}
-	certPEM, err := os.ReadFile("cert/cert.pem")
-	if err != nil {
-		fmt.Println("failed to read cert.pem:", err)
-		return
-	}
-	tlsConf := LoadTLSConfigFromBytes(certPEM, keyPEM)
-	if tlsConf != nil {
-		tlsConf.ClientSessionCache = tls.NewLRUClientSessionCache(5000)
-	}
-	ListenTunnel(":3333", tlsConf)
+// entry func
+func Listen(addr string) error {
+	tlsConf := LoadTLSConfigFromBytes([]byte(cert.Cert), []byte(cert.Key))
+	fmt.Printf("Listening tcp://%s\n", addr)
+	ListenTunnel(addr, tlsConf)
+	return errors.New("tunnel server exited")
 }
 
 type ConnRegistry struct {
-	conns map[string]map[string]*conn.FrameConn
-	sync.RWMutex
+	conns   map[string]map[string]*conn.FrameConn
+	rwMutex sync.RWMutex
 }
 
 func NewConnRegistry() *ConnRegistry {
@@ -98,8 +36,8 @@ func NewConnRegistry() *ConnRegistry {
 	}
 }
 func (r *ConnRegistry) Get(clientId string) *conn.FrameConn {
-	r.RLock()
-	defer r.RUnlock()
+	r.rwMutex.RLock()
+	defer r.rwMutex.RUnlock()
 	if r.conns[clientId] == nil {
 		return nil
 	}
@@ -108,7 +46,7 @@ func (r *ConnRegistry) Get(clientId string) *conn.FrameConn {
 	if length == 0 {
 		return nil
 	}
-	idx := rand.Int() % length
+	idx := rand.Int() % length //nolint
 	i := 0
 	for _, f := range r.conns[clientId] {
 		if i == idx {
@@ -118,9 +56,10 @@ func (r *ConnRegistry) Get(clientId string) *conn.FrameConn {
 	}
 	return nil
 }
+
 func (r *ConnRegistry) Add(clientId string, ctl *conn.FrameConn) {
-	r.Lock()
-	defer r.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	if r.conns[clientId] == nil {
 		r.conns[clientId] = make(map[string]*conn.FrameConn)
 	}
@@ -128,7 +67,10 @@ func (r *ConnRegistry) Add(clientId string, ctl *conn.FrameConn) {
 	go func() {
 		for {
 			if ctl.Error() != nil || ctl.RemoteIP() == "" {
-				r.Del(clientId, ctl)
+				err := r.Del(clientId, ctl)
+				if err != nil {
+					return
+				}
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -138,8 +80,8 @@ func (r *ConnRegistry) Add(clientId string, ctl *conn.FrameConn) {
 }
 
 func (r *ConnRegistry) Del(clientId string, ctl *conn.FrameConn) error {
-	r.Lock()
-	defer r.Unlock()
+	r.rwMutex.Lock()
+	defer r.rwMutex.Unlock()
 	if r.conns[clientId] == nil {
 		return nil
 	}
@@ -156,6 +98,7 @@ func (r *ConnRegistry) Del(clientId string, ctl *conn.FrameConn) error {
 	if len(r.conns[clientId]) == 0 {
 		delete(r.conns, clientId)
 	}
+	tcpmapping.Del(clientId)
 	fmt.Printf("after delete tunnels %#v\n", r.conns)
 	return nil
 }
@@ -192,33 +135,54 @@ func ListenTunnel(addr string, tlsConfig *tls.Config) {
 	for {
 		fc, err := listen.Accept()
 		if err != nil {
-			fmt.Printf("error accept connection %s", err.Error())
+			fmt.Printf("error accept connection %s\n", err.Error())
 			continue
 		}
-		fmt.Printf("accepted tunnel\n")
+		if fc == nil || fc.Info() == nil {
+			continue
+		}
+		userId := fc.Info().ID
+		if !dao.IsVip(userId) {
+			fc.WriteX(conn.MessageNotVIP)
+			fc.Close()
+			fmt.Printf("not vip connect:%s\n", userId)
+			continue
+		}
+		go func(userId string, fc *conn.FrameConn) {
+			tcpmapping.Set(userId, fc)
+		}(userId, fc)
+
+		fmt.Printf("accepted tunnel %s\n", fc.Info())
 		go func(f *conn.FrameConn) {
-			time.Sleep(200 * time.Millisecond)
-			fmt.Printf("开始获取 info\n")
 			info := f.Info()
-			fmt.Printf("获取到 info: %#v\n", info)
+			fmt.Printf("tunnel info %#v\n", info)
 			if info == nil {
-				fmt.Printf("info 为 nil，关闭连接\n")
+				fmt.Printf("cannot get info\n")
 				f.Close()
 				return
 			}
 			if info.ID == "" {
-				id, _ := SecureRandId(16)
+				id, err := SecureRandId(16)
+				if err != nil {
+					fmt.Printf("rand id gen failed")
+				}
 				info.ID = id
+
 				fmt.Printf("no id found in client set id: %s\n", id)
+
 				f.SetInfo(info)
 			}
 			fmt.Printf("add register id: %s\n", info.ID)
 			connRegistry.Add(info.ID, f)
 			for {
-				time.Sleep(1 * time.Second)
+				time.Sleep(5e8)
 				err := f.Error()
 				if err != nil {
-					connRegistry.Del(info.ID, f)
+					err := connRegistry.Del(info.ID, f)
+					if err != nil {
+						fmt.Printf("error del register id: %s", err.Error())
+						return
+					}
 					return
 				}
 			}
@@ -226,49 +190,17 @@ func ListenTunnel(addr string, tlsConfig *tls.Config) {
 	}
 }
 
-// like RandId, but uses a crypto/rand for secure random identifiers
-func SecureRandId(idlen int) (id string, err error) {
-	b := make([]byte, idlen)
-	n, err := rand.Read(b)
-
-	if n != idlen {
-		err = fmt.Errorf("Only generated %d random bytes, %d requested", n, idlen)
-		return
-	}
-
-	if err != nil {
-		return
-	}
-
-	id = fmt.Sprintf("%x", b)
-	return
-}
-
 func RegistryIDs() map[string]string {
 	return connRegistry.IDs()
 }
 
-func GetHTTPTransport(tunnel, ip, cc string) (*http.Transport, error) {
-	// if transport := getTrasposportCache(tunnel, ip, cc); transport != nil {
-	// 	return transport, nil
-	// }
-	var cert []tls.Certificate
-
-	if cc != "" {
-		bytes := []byte(cc)
-		keypair, err := tls.X509KeyPair(bytes, bytes)
-		if err != nil {
-			return nil, err
-		}
-		cert = []tls.Certificate{keypair}
-	}
+func GetHTTPTransport(tunnel, ip string) (*http.Transport, error) {
 	tlsCfg := &tls.Config{
-		Certificates:       cert,
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: true, //nolint
 		Renegotiation:      tls.RenegotiateOnceAsClient,
 	}
 
-	dialer, err := IPDialer(tunnel, ip)
+	dialer, err := GetDialFunc(tunnel, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -279,14 +211,14 @@ func GetHTTPTransport(tunnel, ip, cc string) (*http.Transport, error) {
 		MaxIdleConns:          100,
 		IdleConnTimeout:       2 * time.Minute,
 		TLSHandshakeTimeout:   60 * time.Second,
-		DisableCompression:    false, // todo:
+		DisableCompression:    true, // 用空间换计算
 		// ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	return transport, nil
 }
 
-func IPDialer(tunnel, ip string) (func(network, addr string) (net.Conn, error), error) {
+func GetDialFunc(tunnel, ip string) (func(network, addr string) (net.Conn, error), error) {
 	dialer, err := Dialer(tunnel)
 	if err != nil {
 		return nil, err
@@ -321,7 +253,10 @@ func Dialer(tunnel string) (func(network, addr string) (net.Conn, error), error)
 		c, err := fc.Dial(network, addr)
 		if err != nil {
 			if fc.Error() != nil {
-				connRegistry.Del(tunnel, fc)
+				err := connRegistry.Del(tunnel, fc)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		return c, err
@@ -338,23 +273,15 @@ func DialerConn(tunnel string) (net.Conn, error) {
 	return fc.GetConn()
 }
 
-const keyName = "tunnel"
-
-func LoadTLSConfig(p string) (tlsConfig *tls.Config) {
-	keyPath := func(kind string) string {
-		name := fmt.Sprintf("%s.%s", keyName, kind)
-		return path.Join(p, name)
+func Reset(tunnel string) {
+	if tunnel == "" {
+		return
 	}
-	var cert tls.Certificate
-	cert, err := tls.LoadX509KeyPair(keyPath("crt"), keyPath("key"))
-	if err != nil {
-		return nil
+	fc := connRegistry.Get(tunnel)
+	if fc == nil {
+		return
 	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
+	go fc.WriteX(conn.MessageReload)
 }
 
 func LoadTLSConfigFromBytes(certPEM, keyPEM []byte) (tlsConfig *tls.Config) {
@@ -364,19 +291,26 @@ func LoadTLSConfigFromBytes(certPEM, keyPEM []byte) (tlsConfig *tls.Config) {
 	}
 
 	return &tls.Config{
-		CipherSuites: []uint16{
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		},
 		MinVersion:               tls.VersionTLS12,
-		MaxVersion:               tls.VersionTLS12,
+		MaxVersion:               tls.VersionTLS13,
 		PreferServerCipherSuites: true,
 		Certificates:             []tls.Certificate{cert},
 	}
+}
+
+// like RandId, but uses a crypto/rand for secure random identifiers
+func SecureRandId(idlen int) (id string, err error) {
+	b := make([]byte, idlen)
+	n, err := rand.Read(b)
+	if err != nil {
+		return
+	}
+
+	if n != idlen {
+		err = fmt.Errorf("only generated %d random bytes, %d requested", n, idlen)
+		return
+	}
+
+	id = fmt.Sprintf("%x", b)
+	return
 }

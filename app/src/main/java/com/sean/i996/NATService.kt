@@ -5,13 +5,13 @@ import android.content.Intent
 import android.os.*
 import androidx.core.app.NotificationCompat
 import com.sean.i996.libi996.I996Client
+import com.sean.i996.libi996.Logger
 import kotlinx.coroutines.*
 import java.io.File
 
 class NATService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var i996Client: I996Client? = null
-    private var statusCheckJob: Job? = null
 
     companion object {
         const val CHANNEL_ID = "nat_service_channel"
@@ -52,6 +52,13 @@ class NATService : Service() {
             // 创建 Go 客户端
             i996Client = I996Client()
 
+            // 设置日志回调
+            i996Client?.setLogger(object : Logger {
+                override fun log(message: String) {
+                    sendLog(message)
+                }
+            })
+
             // 设置配置
             i996Client?.setConfig(SERVER_ADDR, FIXED_TOKEN, certPem)
 
@@ -64,31 +71,12 @@ class NATService : Service() {
             sendLog("i996 内网穿透已启动！")
             updateNotification("运行中")
 
-            // 启动状态检查
-            startStatusCheck()
-
         } catch (e: Exception) {
             sendLog("错误: ${e.message}")
             e.printStackTrace()
             updateNotification("启动失败")
             delay(3000)
             stopSelf()
-        }
-    }
-
-    private fun startStatusCheck() {
-        statusCheckJob?.cancel()
-        statusCheckJob = serviceScope.launch {
-            while (isActive) {
-                delay(5000)
-                val running = i996Client?.isRunning() ?: false
-                if (!running) {
-                    sendLog("连接已断开，尝试重连...")
-                    updateNotification("重连中...")
-                } else {
-                    updateNotification("运行中")
-                }
-            }
         }
     }
 
@@ -127,6 +115,21 @@ class NATService : Service() {
     }
 
     private fun sendLog(message: String) {
+        android.util.Log.d("NATService", "发送日志: $message")
+
+        // 保存到 SharedPreferences 供 Activity 读取
+        val prefs = getSharedPreferences("i996_logs", MODE_PRIVATE)
+        val logs = prefs.getStringSet("logs", null)?.toMutableList() ?: mutableListOf()
+
+        // 添加新日志（最多保留 500 条）
+        logs.add(0, "${System.currentTimeMillis()}:$message")
+        if (logs.size > 500) {
+            logs.removeAt(logs.size - 1)
+        }
+
+        prefs.edit().putStringSet("logs", logs.toSet()).apply()
+
+        // 同时也发送广播（用于实时更新）
         val intent = Intent("com.i996.nat.LOG")
         intent.putExtra("log", message)
         sendBroadcast(intent)
@@ -140,7 +143,6 @@ class NATService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         i996Client?.stop()
-        statusCheckJob?.cancel()
         serviceScope.cancel()
         updateServiceStatus(false)
         sendLog("服务已停止")

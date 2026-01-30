@@ -5,7 +5,8 @@ import android.os.*
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.Job
 
 class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
@@ -16,6 +17,7 @@ class MainActivity : AppCompatActivity() {
 
     private var isServiceRunning = false
     private val logReceiver = LogBroadcastReceiver()
+    private var logCheckJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,6 +26,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         registerLogReceiver()
         checkServiceStatus()
+        startLogPolling()
     }
 
     private fun initViews() {
@@ -100,9 +103,39 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        logCheckJob?.cancel()
+    }
+
+    private fun startLogPolling() {
+        logCheckJob = lifecycleScope.launch {
+            var lastLogCount = 0
+            while (isActive) {
+                delay(500) // 每500毫秒检查一次
+
+                val prefs = getSharedPreferences("i996_logs", MODE_PRIVATE)
+                val logs = prefs.getStringSet("logs", null)?.toList()?.sorted() ?: emptyList()
+
+                // 如果有新日志，显示它们（倒序显示，最新的在前）
+                if (logs.size != lastLogCount) {
+                    val newLogs = logs.drop(lastLogCount).reversed()
+                    newLogs.forEach { logEntry ->
+                        val parts = logEntry.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            val message = parts[1]
+                            addLogToUI(message)
+                        }
+                    }
+                    lastLogCount = logs.size
+                }
+            }
+        }
     }
 
     private fun addLog(message: String) {
+        addLogToUI(message)
+    }
+
+    private fun addLogToUI(message: String) {
         runOnUiThread {
             val time = android.text.format.DateFormat.format("yyyy-MM-dd HH:mm:ss", System.currentTimeMillis())
             tvLogs.append("[$time] $message\n")
@@ -113,6 +146,7 @@ class MainActivity : AppCompatActivity() {
     inner class LogBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log") ?: return
+            android.util.Log.d("MainActivity", "收到日志: $log")
             addLog(log)
         }
     }
