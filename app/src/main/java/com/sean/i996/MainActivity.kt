@@ -158,8 +158,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         addLog("正在启动 i996 内网穿透服务...")
-        addLog("Token: tian")
-        addLog("服务器: i996.me:8223")
 
         // 清空隧道信息
         tunnelInfo.clear()
