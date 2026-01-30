@@ -23,7 +23,6 @@ class NATService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        updateServiceStatus(true)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,6 +67,8 @@ class NATService : Service() {
             // 启动客户端
             i996Client?.start()
 
+            // 隧道启动成功后才更新状态
+            updateServiceStatus(true)
             sendLog("i996 内网穿透已启动！")
             updateNotification("运行中")
 

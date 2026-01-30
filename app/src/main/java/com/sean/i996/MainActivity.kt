@@ -1,5 +1,6 @@
 package com.i996.nat
 
+import android.app.ActivityManager
 import android.content.*
 import android.os.*
 import android.widget.*
@@ -58,17 +59,27 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
         }
 
-        updateUI(true)
         addLog("正在启动 i996 内网穿透服务...")
         addLog("Token: tian")
         addLog("服务器: i996.me:8223")
+
+        // 延迟检查服务状态，等待服务真正启动
+        lifecycleScope.launch {
+            delay(500)
+            checkServiceStatus()
+        }
     }
 
     private fun stopNATService() {
         val intent = Intent(this, NATService::class.java)
         stopService(intent)
-        updateUI(false)
-        addLog("服务已停止")
+        addLog("正在停止服务...")
+
+        // 延迟检查服务状态，等待服务真正停止
+        lifecycleScope.launch {
+            delay(500)
+            checkServiceStatus()
+        }
     }
 
     private fun updateUI(running: Boolean) {
@@ -82,8 +93,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkServiceStatus() {
-        val prefs = getSharedPreferences("nat_config", MODE_PRIVATE)
-        val running = prefs.getBoolean("service_running", false)
+        // 使用 ActivityManager 检查服务是否真的在运行
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val running = manager.getRunningServices(Integer.MAX_VALUE)
+            .any { it.service.className == NATService::class.java.name }
         updateUI(running)
     }
 
@@ -104,6 +117,12 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
         logCheckJob?.cancel()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 从后台返回时刷新服务状态
+        checkServiceStatus()
     }
 
     private fun startLogPolling() {
