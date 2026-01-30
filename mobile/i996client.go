@@ -1,88 +1,104 @@
-package main
+package libi996
 
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"flag"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
-	"github.com/bugfan/clotho/i996/engine/tunnel/cert"
-	"github.com/bugfan/clotho/i996/engine/tunnel/conn"
+	"github.com/bugfan/i996-android/tunnel/conn"
 )
 
-var (
-	remoteAddr string = "i996.me:8223"
-	token      *string
-)
+// I996Client i996内网穿透客户端
+type I996Client struct {
+	id         string
+	serverAddr string
+	certPEM    []byte
+	tlsConfig  *tls.Config
+	conn       *conn.FrameConn
+	running    bool
+	stopChan   chan bool
+}
 
-func init() {
-	token = flag.String("token", "", "Token")
-	flag.Parse()
-	if *token == "" {
-		fmt.Printf(`【注意】请指定Token，例如'i996.exe -token xxxxx'或'i996.exe -token=xxxxx'
-`)
-		os.Exit(0)
+var globalClient *I996Client
+
+// NewClient 创建新的客户端实例
+func NewClient() *I996Client {
+	return &I996Client{
+		running:  false,
+		stopChan: make(chan bool),
 	}
 }
 
-func main() {
-	tlsConfig := LoadTLSConfigFromBytes([]byte(cert.Cert))
-	if tlsConfig != nil {
-		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(5000)
+// SetConfig 设置配置
+func (c *I996Client) SetConfig(serverAddr, token string, certPEM []byte) {
+	c.serverAddr = serverAddr
+	c.id = token
+	c.certPEM = certPEM
+	c.tlsConfig = loadTLSConfigFromBytes(certPEM)
+	if c.tlsConfig != nil {
+		c.tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(5000)
 	}
-	for {
-		c := NewClient(remoteAddr, *token, tlsConfig)
-		err := c.Run()
+}
+
+// Start 启动客户端连接
+func (c *I996Client) Start() error {
+	if c.running {
+		return fmt.Errorf("client already running")
+	}
+
+	if c.serverAddr == "" || c.id == "" || c.tlsConfig == nil {
+		return fmt.Errorf("config not set")
+	}
+
+	c.running = true
+	globalClient = c
+	go c.run()
+	return nil
+}
+
+// Stop 停止客户端
+func (c *I996Client) Stop() {
+	if !c.running {
+		return
+	}
+
+	c.running = false
+
+	if c.conn != nil {
+		c.conn.Close()
+	}
+
+	select {
+	case c.stopChan <- true:
+	default:
+	}
+}
+
+// IsRunning 检查客户端是否正在运行
+func (c *I996Client) IsRunning() bool {
+	return c.running
+}
+
+// run 运行客户端主循环
+func (c *I996Client) run() {
+	for c.running {
+		err := c.connect()
 		if err != nil {
-			fmt.Println("error: ", err)
+			// Silent retry
 		}
+
+		if !c.running {
+			break
+		}
+
 		time.Sleep(5 * time.Second)
 	}
 }
 
-func LoadTLSConfigFromBytes(b []byte) *tls.Config {
-	pool := x509.NewCertPool()
-	ok := pool.AppendCertsFromPEM(b)
-	if ok {
-		return &tls.Config{
-			RootCAs:            pool,
-			InsecureSkipVerify: true, //nolint
-		}
-	}
-	return nil
-}
-
-type Client struct {
-	id         string
-	tlsConfig  *tls.Config
-	serverAddr string
-	conn       *conn.FrameConn
-}
-
-func NewClient(serverAddr, id string, tlsc *tls.Config) *Client {
-	c := Client{
-		id:         id,
-		serverAddr: serverAddr,
-		tlsConfig:  tlsc,
-	}
-	return &c
-}
-
-func (c *Client) GetID() string {
-	if c.conn == nil {
-		return c.id
-	}
-	info := c.conn.Info()
-	if info == nil {
-		return c.id
-	}
-	return info.ID
-}
-
-func (c *Client) Run() error {
+// connect 连接到服务器
+func (c *I996Client) connect() error {
 	fc, err := conn.DialTLS("tcp", c.serverAddr, c.tlsConfig)
 	if err != nil {
 		return err
@@ -94,28 +110,43 @@ func (c *Client) Run() error {
 
 	c.conn = fc
 
+	defer func() {
+		c.conn = nil
+	}()
+
 	for {
-		c, err := fc.Accept()
-		if err == io.EOF {
-			fmt.Println("【i996】链接中断了-EOF")
-			break
+		select {
+		case <-c.stopChan:
+			return io.EOF
+		default:
 		}
 
-		if err == conn.NotVIP {
-			fmt.Println(`【i996】抱歉,您目前还不是会员,无法使用此方式连接,请访问"https://www.i996.me"网址,打赏后方可成为会员!`)
-			os.Exit(0)
+		clientConn, err := fc.Accept()
+		if err == io.EOF {
+			break
 		}
 
 		if err != nil {
-			fmt.Printf("【i996】重试 %s\n", err.Error())
 			break
 		}
 
-		go func(c *conn.Conn) {
-			if err := c.Proxy(); err != nil {
-				fmt.Printf("【i996】代理错误 %s\n", err.Error())
-			}
-		}(c)
+		go func(conn *conn.Conn) {
+			conn.Proxy()
+		}(clientConn)
+	}
+
+	return nil
+}
+
+// loadTLSConfigFromBytes 从字节加载TLS配置
+func loadTLSConfigFromBytes(b []byte) *tls.Config {
+	pool := x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(b)
+	if ok {
+		return &tls.Config{
+			RootCAs:            pool,
+			InsecureSkipVerify: true,
+		}
 	}
 	return nil
 }

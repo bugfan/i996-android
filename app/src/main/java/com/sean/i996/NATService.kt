@@ -4,17 +4,20 @@ import android.app.*
 import android.content.Intent
 import android.os.*
 import androidx.core.app.NotificationCompat
+import com.sean.i996.libi996.I996Client
 import kotlinx.coroutines.*
-import java.io.IOException
+import java.io.File
 
 class NATService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var sshManager: SSHTunnelManager? = null
-    private var reconnectJob: Job? = null
+    private var i996Client: I996Client? = null
+    private var statusCheckJob: Job? = null
 
     companion object {
         const val CHANNEL_ID = "nat_service_channel"
         const val NOTIFICATION_ID = 1001
+        const val SERVER_ADDR = "i996.me:8223"
+        const val FIXED_TOKEN = "tian"
     }
 
     override fun onCreate() {
@@ -24,90 +27,68 @@ class NATService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val token = intent?.getStringExtra("token") ?: ""
-        val privateHost = intent?.getStringExtra("private_host") ?: "127.0.0.1:8080"
-
         startForeground(NOTIFICATION_ID, createNotification("正在启动..."))
 
         serviceScope.launch {
-            startTunnel(token, privateHost)
+            startTunnel()
         }
 
         return START_STICKY
     }
 
-    private suspend fun startTunnel(token: String, privateHost: String) {
+    private suspend fun startTunnel() {
         try {
-            sendLog("验证Token中...")
-            updateNotification("验证Token中...")
+            sendLog("正在初始化 i996 客户端...")
+            updateNotification("正在连接...")
 
-            // Token验证
-            val authResult = ApiClient.authenticate(token)
-            if (authResult == null) {
-                sendLog("Token验证失败！")
-                updateNotification("Token验证失败")
-                delay(3000)
-                stopSelf()
-                return
+            // 读取证书
+            val certFile = File(filesDir, "cert.pem")
+            val certPem = if (certFile.exists()) {
+                certFile.readBytes()
+            } else {
+                assets.open("cert.pem").use { it.readBytes() }
             }
 
-            sendLog("Token验证通过!")
-            val (publicHost, configPrivateHost) = authResult
-            val actualPrivateHost = if (configPrivateHost.isNotEmpty()) configPrivateHost else privateHost
+            // 创建 Go 客户端
+            i996Client = I996Client()
 
-            sendLog("公网地址: $publicHost")
-            sendLog("内网地址: $actualPrivateHost")
+            // 设置配置
+            i996Client?.setConfig(SERVER_ADDR, FIXED_TOKEN, certPem)
 
-            // 解析内网地址
-            val parts = actualPrivateHost.split(":")
-            val privateAddr = parts[0]
-            val privatePort = parts.getOrNull(1)?.toIntOrNull() ?: 8080
+            sendLog("Token: $FIXED_TOKEN")
+            sendLog("服务器: $SERVER_ADDR")
 
-            // 建立SSH隧道
-            sshManager = SSHTunnelManager(token, privateAddr, privatePort)
-            updateNotification("连接中...")
+            // 启动客户端
+            i996Client?.start()
 
-            sshManager?.connect { output ->
-                serviceScope.launch(Dispatchers.Main) {
-                    handleSSHOutput(output, publicHost, actualPrivateHost)
-                }
-            }
+            sendLog("i996 内网穿透已启动！")
+            updateNotification("运行中")
+
+            // 启动状态检查
+            startStatusCheck()
 
         } catch (e: Exception) {
             sendLog("错误: ${e.message}")
-            updateNotification("连接失败")
-            scheduleReconnect(token, privateHost)
+            e.printStackTrace()
+            updateNotification("启动失败")
+            delay(3000)
+            stopSelf()
         }
     }
 
-    private fun handleSSHOutput(output: String, publicHost: String, privateHost: String) {
-        when {
-            output.contains("ClothoAllocatedPort") -> {
-                val port = output.substringAfter("ClothoAllocatedPort")
-                sendLog("i996内网穿透启动成功！！！")
-                sendLog("公网地址 =======> https://$publicHost")
-                sendLog("..                http://$publicHost")
-                sendLog("..                tcp://$publicHost:$port")
-                sendLog("内网地址 =======> $privateHost")
-                sendLog("【温馨提示】您正在使用i996新版本！")
-                updateNotification("运行中 - $publicHost")
+    private fun startStatusCheck() {
+        statusCheckJob?.cancel()
+        statusCheckJob = serviceScope.launch {
+            while (isActive) {
+                delay(5000)
+                val running = i996Client?.isRunning() ?: false
+                if (!running) {
+                    sendLog("连接已断开，尝试重连...")
+                    updateNotification("重连中...")
+                } else {
+                    updateNotification("运行中")
+                }
             }
-            output.contains("ClothoUpdatePrivate") -> {
-                sendLog("配置已更新，正在重启连接...")
-                sshManager?.disconnect()
-            }
-            output.isNotEmpty() -> {
-                sendLog(output)
-            }
-        }
-    }
-
-    private fun scheduleReconnect(token: String, privateHost: String) {
-        reconnectJob?.cancel()
-        reconnectJob = serviceScope.launch {
-            sendLog("正在尝试重连,请稍等～")
-            delay(5000)
-            startTunnel(token, privateHost)
         }
     }
 
@@ -115,7 +96,7 @@ class NATService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "内网穿透服务",
+                "i996 内网穿透",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
@@ -131,7 +112,7 @@ class NATService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("i996内网穿透")
+            .setContentTitle("i996 内网穿透")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
@@ -158,8 +139,8 @@ class NATService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        sshManager?.disconnect()
-        reconnectJob?.cancel()
+        i996Client?.stop()
+        statusCheckJob?.cancel()
         serviceScope.cancel()
         updateServiceStatus(false)
         sendLog("服务已停止")

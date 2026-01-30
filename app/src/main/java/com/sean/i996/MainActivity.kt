@@ -8,8 +8,6 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var etToken: EditText
-    private lateinit var etPrivateHost: EditText
     private lateinit var btnToggle: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLogs: TextView
@@ -24,14 +22,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         initViews()
-        loadConfig()
         registerLogReceiver()
         checkServiceStatus()
     }
 
     private fun initViews() {
-        etToken = findViewById(R.id.etToken)
-        etPrivateHost = findViewById(R.id.etPrivateHost)
         btnToggle = findViewById(R.id.btnToggle)
         tvStatus = findViewById(R.id.tvStatus)
         tvLogs = findViewById(R.id.tvLogs)
@@ -51,41 +46,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadConfig() {
-        val prefs = getSharedPreferences("nat_config", MODE_PRIVATE)
-        etToken.setText(prefs.getString("token", ""))
-        etPrivateHost.setText(prefs.getString("private_host", "127.0.0.1:8080"))
-    }
-
-    private fun saveConfig() {
-        val prefs = getSharedPreferences("nat_config", MODE_PRIVATE)
-        prefs.edit().apply {
-            putString("token", etToken.text.toString())
-            putString("private_host", etPrivateHost.text.toString())
-            apply()
-        }
-    }
-
     private fun startNATService() {
-        val token = etToken.text.toString().trim()
-        val privateHost = etPrivateHost.text.toString().trim()
-
-        if (token.isEmpty()) {
-            Toast.makeText(this, "请输入Token", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        if (privateHost.isEmpty()) {
-            Toast.makeText(this, "请输入内网地址", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        saveConfig()
-
-        val intent = Intent(this, NATService::class.java).apply {
-            putExtra("token", token)
-            putExtra("private_host", privateHost)
-        }
+        val intent = Intent(this, NATService::class.java)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -94,7 +56,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         updateUI(true)
-        addLog("正在启动内网穿透服务...")
+        addLog("正在启动 i996 内网穿透服务...")
+        addLog("Token: tian")
+        addLog("服务器: i996.me:8223")
     }
 
     private fun stopNATService() {
@@ -112,8 +76,6 @@ class MainActivity : AppCompatActivity() {
             if (running) getColor(android.R.color.holo_green_dark)
             else getColor(android.R.color.holo_red_dark)
         )
-        etToken.isEnabled = !running
-        etPrivateHost.isEnabled = !running
     }
 
     private fun checkServiceStatus() {
