@@ -3,7 +3,8 @@
 /local.properties
 gradle.properties.local
 app/libs/
-mobile/libi996-sources.jar
+mobile/*-sources.jar
+mobile/*-sources.jar
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -18,5 +19,4 @@ mobile/libi996-sources.jar
 local.properties
 mobileclient-sources.jar
 mobileclient.aar
-app/src/main/assets/
 .idea/kotlinc.xml
