@@ -35,10 +35,8 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
-    // Go Mobile AAR
-    implementation(fileTree("libs") {
-        include("*.aar")
-    })
+    // Go Mobile AAR (built from mobile/libi996.go)
+    implementation(files("../mobile/libi996.aar"))
 
     // 协程
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

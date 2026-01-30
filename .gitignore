@@ -1,6 +1,9 @@
 *.iml
 .gradle
 /local.properties
+gradle.properties.local
+app/libs/
+mobile/libi996-sources.jar
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -16,3 +19,4 @@ local.properties
 mobileclient-sources.jar
 mobileclient.aar
 app/src/main/assets/
+.idea/kotlinc.xml
