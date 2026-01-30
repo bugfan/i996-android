@@ -64,8 +64,10 @@ class MainActivity : AppCompatActivity() {
             if (logs.isNotEmpty()) {
                 android.util.Log.d("MainActivity", "从 LogCache 读取到 ${logs.size} 条日志")
                 for (log in logs) {
-                    addLog(log)
+                    // 先解析并提取隧道信息到上方框（不返回值，不影响日志显示）
                     parseAndExtractTunnelInfo(log)
+                    // 所有日志都添加到日志区域（包括隧道配置信息）
+                    addLog(log)
                 }
             }
         } catch (e: Exception) {
@@ -173,6 +175,10 @@ class MainActivity : AppCompatActivity() {
     private fun stopNATService() {
         val intent = Intent(this, NATService::class.java)
         stopService(intent)
+
+        // 清空隧道信息
+        tunnelInfo.clear()
+        tvTunnelInfo.text = "暂无隧道信息"
         addLog("正在停止服务...")
 
         // 延迟检查服务状态，等待服务真正停止
@@ -251,48 +257,59 @@ class MainActivity : AppCompatActivity() {
     private fun parseAndExtractTunnelInfo(message: String) {
         android.util.Log.d("MainActivity", "解析隧道信息: $message")
 
-        // 解析Go日志中的关键信息
-        var updated = false
-        when {
-            message.contains("您的OpenId为") -> {
-                val openId = extractValue(message, "=>")
-                tunnelInfo.append("OpenId: $openId\n")
-                updated = true
-            }
-            message.contains("您的Web访问地址为") -> {
-                val url = extractValue(message, "=>")
-                tunnelInfo.append("Web: $url\n")
-                updated = true
-            }
-            message.contains("您的TCP访问地址为") -> {
-                val tcp = extractValue(message, "=>")
-                tunnelInfo.append("TCP: $tcp\n")
-                updated = true
-            }
-            message.contains("您的CNAME地址为") -> {
-                val cname = extractValue(message, "=>")
-                tunnelInfo.append("CNAME: $cname\n")
-                updated = true
-            }
-            message.contains("您的内网地址为") -> {
-                val localAddr = extractValue(message, "=>")
-                tunnelInfo.append("内网: $localAddr\n")
-                updated = true
-            }
-            message.matches(Regex("\\[\\d+\\].*->.*")) -> {
-                // 多隧道配置，例如: [1] test-fuck.i996.me -> http://192.168.1.2
-                tunnelInfo.append("$message\n")
-                updated = true
-            }
-            message.contains("您的多隧道配置为") -> {
-                tunnelInfo.append("多隧道:\n")
-                updated = true
-            }
-        }
+        // 先过滤掉不需要的提示性文字
+        val filteredMessage = message
+            .replace("您的多隧道配置为 => 👇", "")
+            .replace("您的多隧道配置为=>👇", "")
+            .replace("您的多隧道配置为 =>", "")
+            .replace("您的多隧道配置为=>", "")
+            .replace("您的OpenId为 => ", "OpenId: ")
+            .replace("您的Web访问地址为 => ", "Web: ")
+            .replace("您的TCP访问地址为 => ", "TCP: ")
+            .replace("您的CNAME地址为 => ", "CNAME: ")
+            .replace("您的内网地址为 => ", "内网: ")
+            .replace("http(s)://", "https://")
+            .trim()
 
-        if (updated) {
-            android.util.Log.d("MainActivity", "隧道信息已更新: ${tunnelInfo.length} 字符")
-            tvTunnelInfo.text = tunnelInfo.toString()
+        if (filteredMessage.isEmpty()) return
+
+        // 解析Go日志中的关键信息
+        when {
+            filteredMessage.contains("OpenId: ") && !filteredMessage.contains("[") -> {
+                // OpenId 单行信息
+                val openId = extractValue(filteredMessage, "OpenId: ")
+                tunnelInfo.append("OpenId: $openId\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
+            filteredMessage.contains("Web: ") && !filteredMessage.contains("[") -> {
+                // Web 单行信息
+                val url = extractValue(filteredMessage, "Web: ")
+                tunnelInfo.append("Web: $url\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
+            filteredMessage.contains("TCP: ") && !filteredMessage.contains("[") -> {
+                // TCP 单行信息
+                val tcp = extractValue(filteredMessage, "TCP: ")
+                tunnelInfo.append("TCP: $tcp\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
+            filteredMessage.contains("CNAME: ") && !filteredMessage.contains("[") -> {
+                // CNAME 单行信息
+                val cname = extractValue(filteredMessage, "CNAME: ")
+                tunnelInfo.append("CNAME: $cname\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
+            filteredMessage.contains("内网: ") && !filteredMessage.contains("[") -> {
+                // 内网地址单行信息
+                val localAddr = extractValue(filteredMessage, "内网: ")
+                tunnelInfo.append("内网: $localAddr\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
+            filteredMessage.matches(Regex("\\[\\d+\\].*->.*")) -> {
+                // 多隧道配置，例如: [1] test-fuck.i996.me -> http://192.168.1.2
+                tunnelInfo.append("$filteredMessage\n")
+                tvTunnelInfo.text = tunnelInfo.toString()
+            }
         }
     }
 
@@ -312,9 +329,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val time = android.text.format.DateFormat.format("yy/MM/dd HH:mm:ss", System.currentTimeMillis())
+        // 更紧凑的时间格式：只显示时分秒
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
         val newLog = "[$time] $message\n"
-        tvLogs.append(newLog)
+
+        // 新日志添加到顶部，而不是底部
+        tvLogs.text = newLog + tvLogs.text
         logLineCount++
 
         // 滚动到顶部

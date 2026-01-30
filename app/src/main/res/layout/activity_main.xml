@@ -98,9 +98,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:textSize="10sp"
+            android:textSize="8sp"
             android:textColor="@color/colorOnSurface"
-            android:lineSpacingExtra="2dp" />
+            android:lineSpacingExtra="1dp" />
     </ScrollView>
 
 </LinearLayout>

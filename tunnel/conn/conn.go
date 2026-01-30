@@ -301,6 +301,7 @@ func (c *FrameConn) Accept() (*Conn, error) {
 			}
 			defer resp.Body.Close()
 
+			// 发送连接成功消息（但不在日志区域显示，会被过滤）
 			msg1 := "【i996】😊 您已连接成功！欢迎光临！！！"
 			msg2 := "【i996】👏👏👏 温馨提示，您是尊贵的会员用户，享受一系列尊贵特权～"
 			if globalLogFunc != nil {
@@ -310,12 +311,26 @@ func (c *FrameConn) Accept() (*Conn, error) {
 			fmt.Println(msg1)
 			fmt.Println(msg2)
 
+			// 读取隧道配置信息并分行发送
 			info, _ := io.ReadAll(resp.Body)
 			infoStr := string(info)
-			if globalLogFunc != nil {
-				globalLogFunc(infoStr)
+
+			// 将多行配置信息分行发送
+			lines := []string{infoStr}
+			if len(infoStr) > 0 {
+				// 按行分割
+				lines = strings.Split(infoStr, "\n")
 			}
-			fmt.Println(infoStr)
+
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					if globalLogFunc != nil {
+						globalLogFunc(line)
+					}
+					fmt.Println(line)
+				}
+			}
 			return c.accept(id)
 		default:
 			return c.accept(id)
@@ -1474,13 +1489,14 @@ func joinCopy(forward bool, to, from io.ReadWriter, vg *sync.WaitGroup, addr str
 		if i == 1 && forward {
 			idx := bytes.Index(buf, []byte("\n"))
 			if idx > 0 && bytes.Contains(buf[0:idx], []byte("HTTP")) {
+				// 只输出到日志区域，不输出到隧道信息框
 				logMsg := fmt.Sprintf("【i996】==> %s %s", addr, string(buf[0:idx]))
 				if globalLogFunc != nil {
 					globalLogFunc(logMsg)
 				}
 				fmt.Println(logMsg)
 			} else {
-				logMsg := fmt.Sprintf("【i996】==> %s %s", addr, "(https数据不展示)")
+				logMsg := fmt.Sprintf("【i996】==> %s %s", addr, "(https数据)")
 				if globalLogFunc != nil {
 					globalLogFunc(logMsg)
 				}

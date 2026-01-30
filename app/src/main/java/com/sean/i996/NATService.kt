@@ -126,14 +126,24 @@ class NATService : Service(), Logger {
     }
 
     private fun broadcastLog(message: String) {
+        // 去掉【i996】前缀（如果有）
+        var cleanMessage = message.replace("【i996】", "")
+            .replace("【i996】", "")
+            .trim()
+
+        // 特殊处理：过滤掉 HTTP 请求日志中的【i996】前缀，但保留内容
+        if (cleanMessage.startsWith("==> ")) {
+            cleanMessage = cleanMessage.substring(3).trim()
+        }
+
         // 1. 保存到 LogCache（可靠方式）
-        LogCache.addLog(this, message)
+        LogCache.addLog(this, cleanMessage)
 
         // 2. 同时尝试发送广播（可能不工作）
         val intent = Intent("com.i996.nat.LOG")
-        intent.putExtra("log", message)
+        intent.putExtra("log", cleanMessage)
         intent.putExtra("timestamp", System.currentTimeMillis())
-        android.util.Log.d("NATService", "发送广播: [$message]")
+        android.util.Log.d("NATService", "发送广播: [$cleanMessage]")
         sendBroadcast(intent)
     }
 
