@@ -8,21 +8,43 @@ import com.sean.i996.libi996.I996Client
 import com.sean.i996.libi996.Logger
 import kotlinx.coroutines.*
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class NATService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var i996Client: I996Client? = null
+
+    // 日志处理专用的 HandlerThread
+    private lateinit var logHandlerThread: HandlerThread
+    private lateinit var logHandler: Handler
 
     companion object {
         const val CHANNEL_ID = "nat_service_channel"
         const val NOTIFICATION_ID = 1001
         const val SERVER_ADDR = "i996.me:8223"
         const val FIXED_TOKEN = "tian"
+        const val MSG_LOG = 1001
     }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        setupLogHandler()
+    }
+
+    private fun setupLogHandler() {
+        // 创建专门处理日志的线程
+        logHandlerThread = HandlerThread("LogHandlerThread", Process.THREAD_PRIORITY_BACKGROUND)
+        logHandlerThread.start()
+
+        logHandler = object : Handler(logHandlerThread.looper) {
+            override fun handleMessage(msg: Message) {
+                if (msg.what == MSG_LOG) {
+                    val logMessage = msg.obj as String
+                    broadcastLog(logMessage)
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -51,10 +73,12 @@ class NATService : Service() {
             // 创建 Go 客户端
             i996Client = I996Client()
 
-            // 设置日志回调
+            // 设置日志回调 - 直接通过 Handler 发送，不阻塞
             i996Client?.setLogger(object : Logger {
                 override fun log(message: String) {
-                    sendLog(message)
+                    // 通过 Handler 异步发送日志，不阻塞 Go 调用线程
+                    val msg = logHandler.obtainMessage(MSG_LOG, message)
+                    logHandler.sendMessage(msg)
                 }
             })
 
@@ -117,22 +141,16 @@ class NATService : Service() {
 
     private fun sendLog(message: String) {
         android.util.Log.d("NATService", "发送日志: $message")
+        // 通过 Handler 异步发送
+        val msg = logHandler.obtainMessage(MSG_LOG, message)
+        logHandler.sendMessage(msg)
+    }
 
-        // 保存到 SharedPreferences 供 Activity 读取
-        val prefs = getSharedPreferences("i996_logs", MODE_PRIVATE)
-        val logs = prefs.getStringSet("logs", null)?.toMutableList() ?: mutableListOf()
-
-        // 添加新日志（最多保留 500 条）
-        logs.add(0, "${System.currentTimeMillis()}:$message")
-        if (logs.size > 500) {
-            logs.removeAt(logs.size - 1)
-        }
-
-        prefs.edit().putStringSet("logs", logs.toSet()).apply()
-
-        // 同时也发送广播（用于实时更新）
+    private fun broadcastLog(message: String) {
+        // 只发送广播，不写入 SharedPreferences
         val intent = Intent("com.i996.nat.LOG")
         intent.putExtra("log", message)
+        intent.putExtra("timestamp", System.currentTimeMillis())
         sendBroadcast(intent)
     }
 
@@ -147,6 +165,13 @@ class NATService : Service() {
         serviceScope.cancel()
         updateServiceStatus(false)
         sendLog("服务已停止")
+
+        // 停止日志线程
+        try {
+            logHandlerThread.quitSafely()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
