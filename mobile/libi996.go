@@ -44,6 +44,8 @@ func (c *I996Client) SetLogger(logger Logger) {
 	conn.SetGlobalLogger(func(msg string) {
 		c.log(msg)
 	})
+	// 发送测试日志，确认 logger 设置成功
+	c.log("【i996】Logger 设置成功！")
 }
 
 // SetConfig 设置配置

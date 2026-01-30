@@ -8,43 +8,28 @@ import com.sean.i996.libi996.I996Client
 import com.sean.i996.libi996.Logger
 import kotlinx.coroutines.*
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 
-class NATService : Service() {
+// NATService 实现 Logger 接口，直接接收来自 Go 的日志
+class NATService : Service(), Logger {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var i996Client: I996Client? = null
-
-    // 日志处理专用的 HandlerThread
-    private lateinit var logHandlerThread: HandlerThread
-    private lateinit var logHandler: Handler
 
     companion object {
         const val CHANNEL_ID = "nat_service_channel"
         const val NOTIFICATION_ID = 1001
         const val SERVER_ADDR = "i996.me:8223"
         const val FIXED_TOKEN = "tian"
-        const val MSG_LOG = 1001
+    }
+
+    // 实现 Logger 接口，接收来自 Go 的日志
+    override fun log(message: String) {
+        android.util.Log.d("GoLog", "收到Go日志: 【i996】$message")
+        broadcastLog("【i996】$message")
     }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        setupLogHandler()
-    }
-
-    private fun setupLogHandler() {
-        // 创建专门处理日志的线程
-        logHandlerThread = HandlerThread("LogHandlerThread", Process.THREAD_PRIORITY_BACKGROUND)
-        logHandlerThread.start()
-
-        logHandler = object : Handler(logHandlerThread.looper) {
-            override fun handleMessage(msg: Message) {
-                if (msg.what == MSG_LOG) {
-                    val logMessage = msg.obj as String
-                    broadcastLog(logMessage)
-                }
-            }
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,14 +58,10 @@ class NATService : Service() {
             // 创建 Go 客户端
             i996Client = I996Client()
 
-            // 设置日志回调 - 直接通过 Handler 发送，不阻塞
-            i996Client?.setLogger(object : Logger {
-                override fun log(message: String) {
-                    // 通过 Handler 异步发送日志，不阻塞 Go 调用线程
-                    val msg = logHandler.obtainMessage(MSG_LOG, message)
-                    logHandler.sendMessage(msg)
-                }
-            })
+            // 首先设置 Logger（重要！）
+            android.util.Log.d("NATService", "正在设置 Go Logger...")
+            i996Client?.setLogger(this)
+            android.util.Log.d("NATService", "Go Logger 已设置")
 
             // 设置配置
             i996Client?.setConfig(SERVER_ADDR, FIXED_TOKEN, certPem)
@@ -91,7 +72,7 @@ class NATService : Service() {
             // 启动客户端
             i996Client?.start()
 
-            // 隧道启动成功后才更新状态
+            // 隧道启动成功后更新状态
             updateServiceStatus(true)
             sendLog("i996 内网穿透已启动！")
             updateNotification("运行中")
@@ -141,16 +122,18 @@ class NATService : Service() {
 
     private fun sendLog(message: String) {
         android.util.Log.d("NATService", "发送日志: $message")
-        // 通过 Handler 异步发送
-        val msg = logHandler.obtainMessage(MSG_LOG, message)
-        logHandler.sendMessage(msg)
+        broadcastLog(message)
     }
 
     private fun broadcastLog(message: String) {
-        // 只发送广播，不写入 SharedPreferences
+        // 1. 保存到 LogCache（可靠方式）
+        LogCache.addLog(this, message)
+
+        // 2. 同时尝试发送广播（可能不工作）
         val intent = Intent("com.i996.nat.LOG")
         intent.putExtra("log", message)
         intent.putExtra("timestamp", System.currentTimeMillis())
+        android.util.Log.d("NATService", "发送广播: [$message]")
         sendBroadcast(intent)
     }
 
@@ -165,13 +148,6 @@ class NATService : Service() {
         serviceScope.cancel()
         updateServiceStatus(false)
         sendLog("服务已停止")
-
-        // 停止日志线程
-        try {
-            logHandlerThread.quitSafely()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

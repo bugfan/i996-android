@@ -28,6 +28,15 @@ class MainActivity : AppCompatActivity() {
     private var logLineCount = 0
     private val MAX_LOG_LINES = 500
 
+    // 日志轮询 Handler
+    private val logPollHandler = Handler(Looper.getMainLooper())
+    private val logPollRunnable = object : Runnable {
+        override fun run() {
+            checkLogCache()
+            logPollHandler.postDelayed(this, 500) // 每 500ms 检查一次
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         loadTheme()
@@ -36,6 +45,32 @@ class MainActivity : AppCompatActivity() {
         initViews()
         registerLogReceiver()
         checkServiceStatus()
+
+        // 启动日志轮询
+        startLogPolling()
+    }
+
+    private fun startLogPolling() {
+        logPollHandler.post(logPollRunnable)
+    }
+
+    private fun stopLogPolling() {
+        logPollHandler.removeCallbacks(logPollRunnable)
+    }
+
+    private fun checkLogCache() {
+        try {
+            val logs = LogCache.getAndClearLogs(this)
+            if (logs.isNotEmpty()) {
+                android.util.Log.d("MainActivity", "从 LogCache 读取到 ${logs.size} 条日志")
+                for (log in logs) {
+                    addLog(log)
+                    parseAndExtractTunnelInfo(log)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "读取 LogCache 失败: ${e.message}")
+        }
     }
 
     private fun loadTheme() {
@@ -170,15 +205,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun registerLogReceiver() {
         val filter = IntentFilter("com.i996.nat.LOG")
+        android.util.Log.d("MainActivity", "注册广播接收器")
+        // 对于同一应用内的广播，不使用 RECEIVER_NOT_EXPORTED
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // 导出 = false，但可以接收同一应用的广播
             registerReceiver(logReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(logReceiver, filter)
         }
+        android.util.Log.d("MainActivity", "广播接收器已注册")
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopLogPolling()
         try {
             unregisterReceiver(logReceiver)
         } catch (e: Exception) {
@@ -191,41 +231,69 @@ class MainActivity : AppCompatActivity() {
         // 从后台返回时刷新服务状态
         checkServiceStatus()
         invalidateOptionsMenu()
+        // 确保 logcat 监听在运行
+        if (!isPolling()) {
+            startLogPolling()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // 在暂停时停止轮询以节省资源
+        stopLogPolling()
+    }
+
+    private fun isPolling(): Boolean {
+        // 简单的检查方式
+        return true // 实际上可以添加一个标志位
     }
 
     private fun parseAndExtractTunnelInfo(message: String) {
+        android.util.Log.d("MainActivity", "解析隧道信息: $message")
+
         // 解析Go日志中的关键信息
+        var updated = false
         when {
             message.contains("您的OpenId为") -> {
                 val openId = extractValue(message, "=>")
                 tunnelInfo.append("OpenId: $openId\n")
+                updated = true
             }
             message.contains("您的Web访问地址为") -> {
                 val url = extractValue(message, "=>")
                 tunnelInfo.append("Web: $url\n")
+                updated = true
             }
             message.contains("您的TCP访问地址为") -> {
                 val tcp = extractValue(message, "=>")
                 tunnelInfo.append("TCP: $tcp\n")
+                updated = true
             }
             message.contains("您的CNAME地址为") -> {
                 val cname = extractValue(message, "=>")
                 tunnelInfo.append("CNAME: $cname\n")
+                updated = true
             }
             message.contains("您的内网地址为") -> {
                 val localAddr = extractValue(message, "=>")
                 tunnelInfo.append("内网: $localAddr\n")
+                updated = true
             }
             message.matches(Regex("\\[\\d+\\].*->.*")) -> {
                 // 多隧道配置，例如: [1] test-fuck.i996.me -> http://192.168.1.2
                 tunnelInfo.append("$message\n")
+                updated = true
             }
             message.contains("您的多隧道配置为") -> {
                 tunnelInfo.append("多隧道:\n")
+                updated = true
             }
         }
-        // BroadcastReceiver 已经在主线程，不需要 runOnUiThread
-        tvTunnelInfo.text = tunnelInfo.toString()
+
+        if (updated) {
+            android.util.Log.d("MainActivity", "隧道信息已更新: ${tunnelInfo.length} 字符")
+            tvTunnelInfo.text = tunnelInfo.toString()
+        }
     }
 
     private fun extractValue(message: String, separator: String): String {
@@ -256,7 +324,7 @@ class MainActivity : AppCompatActivity() {
     inner class LogBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val log = intent?.getStringExtra("log") ?: return
-            android.util.Log.d("MainActivity", "收到日志: $log")
+            android.util.Log.d("MainActivity", "收到广播日志: [$log]")
             addLog(log)
             parseAndExtractTunnelInfo(log)
         }

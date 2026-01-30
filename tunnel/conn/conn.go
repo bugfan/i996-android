@@ -151,6 +151,10 @@ func (c *Conn) Proxy() error {
 	if err != nil {
 		confirmed := c.frame.writeConnectConfirm(c.id, err)
 		if !confirmed {
+			logMsg := fmt.Sprintf("write connect confirm failed for id: %d", c.id)
+			if globalLogFunc != nil {
+				globalLogFunc(logMsg)
+			}
 			fmt.Printf("write connect confirm failed for id: %d", c.id)
 		}
 		c.Reset()
@@ -158,6 +162,10 @@ func (c *Conn) Proxy() error {
 	}
 	confirmed := c.frame.writeConnectConfirm(c.id, nil)
 	if !confirmed {
+		logMsg := fmt.Sprintf("write connect confirm failed for id: %d", c.id)
+		if globalLogFunc != nil {
+			globalLogFunc(logMsg)
+		}
 		fmt.Printf("write connect confirm failed for id: %d", c.id)
 	}
 	join(c, tconn, c.connectAddr)
@@ -177,6 +185,10 @@ func (c *Conn) error() error {
 func (c *Conn) closeConn() {
 	defer func() {
 		if recover() != nil {
+			logMsg := fmt.Sprintf("panic recovered in closeConn: %v", recover())
+			if globalLogFunc != nil {
+				globalLogFunc(logMsg)
+			}
 			fmt.Printf("panic recovered in closeConn: %v", recover())
 		}
 	}()
@@ -190,6 +202,10 @@ func (c *Conn) closeConn() {
 func (c *Conn) reset() {
 	defer func() {
 		if err := recover(); err != nil {
+			logMsg := fmt.Sprintf("panic recovered in reset: %v", err)
+			if globalLogFunc != nil {
+				globalLogFunc(logMsg)
+			}
 			fmt.Printf("panic recovered in reset: %v", err)
 		}
 	}()
@@ -276,16 +292,30 @@ func (c *FrameConn) Accept() (*Conn, error) {
 			R.Header.Add("Token", c.info.ID)
 			resp, err := http.DefaultClient.Do(R)
 			if err != nil {
+				logMsg := fmt.Sprintf("verify client api error: %v", err)
+				if globalLogFunc != nil {
+					globalLogFunc(logMsg)
+				}
 				fmt.Printf("verify client api error: %v", err)
 				return c.accept(id)
 			}
 			defer resp.Body.Close()
 
-			fmt.Println("【i996】😊 您已连接成功！欢迎光临！！！")
-			fmt.Println("【i996】👏👏👏 温馨提示，您是尊贵的会员用户，享受一系列尊贵特权～")
+			msg1 := "【i996】😊 您已连接成功！欢迎光临！！！"
+			msg2 := "【i996】👏👏👏 温馨提示，您是尊贵的会员用户，享受一系列尊贵特权～"
+			if globalLogFunc != nil {
+				globalLogFunc(msg1)
+				globalLogFunc(msg2)
+			}
+			fmt.Println(msg1)
+			fmt.Println(msg2)
 
 			info, _ := io.ReadAll(resp.Body)
-			fmt.Println(string(info))
+			infoStr := string(info)
+			if globalLogFunc != nil {
+				globalLogFunc(infoStr)
+			}
+			fmt.Println(infoStr)
 			return c.accept(id)
 		default:
 			return c.accept(id)
@@ -1117,6 +1147,10 @@ func (c *FrameConn) runReader() {
 	for ; err == nil; err = c.context.Err() {
 		err := c.net.SetReadDeadline(time.Now().Add(30 * time.Second))
 		if err != nil {
+			logMsg := fmt.Sprintf("failed to set read deadline: %v", err)
+			if globalLogFunc != nil {
+				globalLogFunc(logMsg)
+			}
 			fmt.Printf("failed to set read deadline: %v", err)
 			return
 		}
@@ -1127,6 +1161,10 @@ func (c *FrameConn) runReader() {
 		}
 		err = c.net.SetReadDeadline(time.Time{})
 		if err != nil {
+			logMsg := fmt.Sprintf("failed to set read deadline: %v", err)
+			if globalLogFunc != nil {
+				globalLogFunc(logMsg)
+			}
 			fmt.Printf("failed to set read deadline: %v", err)
 			return
 		}
