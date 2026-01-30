@@ -138,8 +138,9 @@ class MainActivity : AppCompatActivity() {
     private fun addLogToUI(message: String) {
         runOnUiThread {
             val time = android.text.format.DateFormat.format("yy/MM/dd HH:mm:ss", System.currentTimeMillis())
-            tvLogs.append("[$time] $message\n")
-            svLogs.post { svLogs.fullScroll(ScrollView.FOCUS_DOWN) }
+            val currentText = tvLogs.text.toString()
+            tvLogs.text = "[$time] $message\n$currentText"
+            svLogs.post { svLogs.fullScroll(ScrollView.FOCUS_UP) }
         }
     }
 
