@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Token: tian2"
+        android:text="Token: tian"
         android:textSize="13sp"
         android:padding="12dp"
         android:background="@color/colorSurface"

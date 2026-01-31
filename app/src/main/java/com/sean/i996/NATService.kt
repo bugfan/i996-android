@@ -18,7 +18,7 @@ class NATService : Service(), Logger {
         const val CHANNEL_ID = "nat_service_channel"
         const val NOTIFICATION_ID = 1001
         const val SERVER_ADDR = "i996.me:8223"
-        const val FIXED_TOKEN = "tian4"
+        const val FIXED_TOKEN = "tian"
     }
 
     // 实现 Logger 接口，接收来自 Go 的日志
