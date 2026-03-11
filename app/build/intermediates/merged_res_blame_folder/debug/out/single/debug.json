@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-merged_res-34:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-main-36:/mipmap-hdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-merged_res-34:/layout_activity_main.xml.flat",
+        "source": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-main-36:/layout/activity_main.xml"
+    },
+    {
+        "merged": "me.i996.client.app-merged_res-34:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "me.i996.client.app-main-36:/mipmap-hdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-merged_res-34:/drawable_ic_tunnel.xml.flat",
+        "source": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-main-36:/drawable/ic_tunnel.xml"
+    },
+    {
+        "merged": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-merged_res-34:/drawable_ic_stop.xml.flat",
+        "source": "/Users/sean/.gradle/daemon/9.0-milestone-1/me.i996.client.app-main-36:/drawable/ic_stop.xml"
+    }
+]

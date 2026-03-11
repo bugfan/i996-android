@@ -1,0 +1,16 @@
+R_DEF: Internal format may change without notice
+local
+drawable ic_stop
+drawable ic_tunnel
+id btn_clear_log
+id btn_connect
+id btn_disconnect
+id et_server
+id et_token
+id scroll_log
+id tv_auth_info
+id tv_log
+id tv_status
+layout activity_main
+mipmap ic_launcher
+string app_name

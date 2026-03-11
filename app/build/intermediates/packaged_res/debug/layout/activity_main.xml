@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#1a1a2e">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="i996 内网穿透"
+            android:textColor="#e0e0e0"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp"/>
+
+        <!-- Status -->
+        <TextView
+            android:id="@+id/tv_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="○ 未连接"
+            android:textColor="#888888"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:paddingBottom="20dp"/>
+
+        <!-- Auth info card -->
+        <TextView
+            android:id="@+id/tv_auth_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:background="#1e3a5f"
+            android:padding="12dp"
+            android:textColor="#7ec8e3"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Token input -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Token"
+            android:textColor="#aaaaaa"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/et_token"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="输入您的 Token"
+            android:inputType="text"
+            android:background="#2a2a4a"
+            android:textColor="#e0e0e0"
+            android:textColorHint="#555577"
+            android:padding="12dp"
+            android:textSize="14sp"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Server input -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="服务器地址"
+            android:textColor="#aaaaaa"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+
+        <EditText
+            android:id="@+id/et_server"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="host:port"
+            android:inputType="text"
+            android:background="#2a2a4a"
+            android:textColor="#e0e0e0"
+            android:textColorHint="#555577"
+            android:padding="12dp"
+            android:textSize="14sp"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btn_connect"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="连接"
+                android:backgroundTint="#4a90e2"
+                android:textColor="#ffffff"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/btn_disconnect"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="断开"
+                android:enabled="false"
+                android:backgroundTint="#c0392b"
+                android:textColor="#ffffff"/>
+        </LinearLayout>
+
+        <!-- Log header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="请求日志"
+                android:textColor="#aaaaaa"
+                android:textSize="13sp"/>
+
+            <Button
+                android:id="@+id/btn_clear_log"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="清空"
+                android:textSize="12sp"
+                android:backgroundTint="#333355"
+                android:textColor="#aaaaaa"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"/>
+        </LinearLayout>
+
+        <!-- Log area -->
+        <ScrollView
+            android:id="@+id/scroll_log"
+            android:layout_width="match_parent"
+            android:layout_height="350dp"
+            android:background="#0d0d1a"
+            android:padding="8dp">
+
+            <TextView
+                android:id="@+id/tv_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#00cc66"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="2dp"
+                android:text=""/>
+        </ScrollView>
+
+        <!-- Footer -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="i996.me · 手机版"
+            android:textColor="#444466"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:paddingTop="16dp"/>
+
+    </LinearLayout>
+</ScrollView>
