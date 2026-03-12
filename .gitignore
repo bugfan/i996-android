@@ -9,3 +9,4 @@ gradle.properties.local
 .cxx
 local.properties
 .idea/kotlinc.xml
+app/build

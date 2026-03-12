@@ -6,7 +6,7 @@ object Prefs {
     private const val NAME = "i996_prefs"
     private const val KEY_TOKEN = "token"
     private const val KEY_SERVER = "server"
-    private const val DEFAULT_SERVER = "i996.me:8225"  // dedicated mobile port
+    private const val DEFAULT_SERVER = "i996.me:8224"  // dedicated mobile port
 
     fun getToken(ctx: Context): String =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getString(KEY_TOKEN, "") ?: ""

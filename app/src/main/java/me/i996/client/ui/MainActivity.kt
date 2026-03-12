@@ -24,8 +24,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrollView: ScrollView
     private lateinit var tvAuthInfo: TextView
 
-    private var isConnected = false
-
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -63,7 +61,6 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         setupListeners()
         loadSavedPrefs()
-        reloadLogs()
     }
 
     override fun onResume() {
@@ -73,7 +70,13 @@ class MainActivity : AppCompatActivity() {
             addAction(TunnelService.BROADCAST_STATUS)
             addAction(TunnelService.BROADCAST_AUTH_RESULT)
         }
-        registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        // 兼容所有 API 版本
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(receiver, filter)
+        }
+        // 刷新历史日志
         reloadLogs()
     }
 
@@ -81,8 +84,6 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         runCatching { unregisterReceiver(receiver) }
     }
-
-    // ---- UI wiring ---------------------------------------------------------
 
     private fun bindViews() {
         etToken = findViewById(R.id.et_token)
@@ -107,6 +108,8 @@ class MainActivity : AppCompatActivity() {
             Prefs.saveToken(this, token)
             Prefs.saveServer(this, server)
             tvAuthInfo.visibility = View.GONE
+            LogBuffer.clear()
+            tvLog.text = ""
             startTunnel(token, server)
         }
 
@@ -123,6 +126,8 @@ class MainActivity : AppCompatActivity() {
     private fun loadSavedPrefs() {
         etToken.setText(Prefs.getToken(this))
         etServer.setText(Prefs.getServer(this))
+        // 启动时默认显示未连接，不自动连接
+        setConnected(false)
     }
 
     private fun reloadLogs() {
@@ -133,8 +138,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---- Actions -----------------------------------------------------------
-
     private fun startTunnel(token: String, server: String) {
         val intent = TunnelService.startIntent(this, token, server)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -142,18 +145,20 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(intent)
         }
-        setConnected(false) // pending
         tvStatus.text = "连接中..."
+        tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+        btnConnect.isEnabled = false
+        btnDisconnect.isEnabled = true
     }
 
     private fun stopTunnel() {
+        // 必须用 startService 发 ACTION_STOP，不能用 stopService
         startService(TunnelService.stopIntent(this))
         setConnected(false)
         tvAuthInfo.visibility = View.GONE
     }
 
     private fun setConnected(connected: Boolean) {
-        isConnected = connected
         runOnUiThread {
             btnConnect.isEnabled = !connected
             btnDisconnect.isEnabled = connected
@@ -163,6 +168,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 tvStatus.text = "○ 未连接"
                 tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+                btnConnect.isEnabled = true
+                btnDisconnect.isEnabled = false
             }
         }
     }
@@ -171,10 +178,8 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             val current = tvLog.text.toString()
             val lines = if (current.isEmpty()) mutableListOf() else current.split("\n").toMutableList()
-            // Keep last 200 lines in UI
-            val entry = "[${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}] $msg"
-            lines.add(entry)
-            if (lines.size > 200) lines.removeAt(0)
+            lines.add(msg)
+            if (lines.size > 200) lines.subList(0, lines.size - 200).clear()
             tvLog.text = lines.joinToString("\n")
             scrollToBottom()
         }
