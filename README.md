@@ -39,7 +39,7 @@ app/src/main/assets/ca.crt
 
 编辑 `util/Prefs.kt`：
 ```kotlin
-private const val DEFAULT_SERVER = "i996.me:8225"  // 改成你手机专用的端口
+private const val DEFAULT_SERVER = "192.168.1.213:8225"  // 改成你手机专用的端口
 ```
 
 ### 3. 构建 APK

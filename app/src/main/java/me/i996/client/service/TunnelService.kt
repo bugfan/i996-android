@@ -113,8 +113,9 @@ class TunnelService : Service() {
     }
 
     private fun stopTunnel() {
-        client?.stop()
+        val c = client
         client = null
+        Thread { runCatching { c?.stop() } }.start()
     }
 
     fun isConnected() = client?.isRunning() == true
@@ -125,7 +126,7 @@ class TunnelService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "i996 隧道服务",
+                "i996 内网穿透",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "保持内网穿透隧道连接"

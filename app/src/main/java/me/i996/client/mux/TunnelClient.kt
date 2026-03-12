@@ -44,7 +44,7 @@ class TunnelClient(
 
     fun stop() {
         running.set(false)
-        currentSession?.close()
+        runCatching { currentSession?.close() }
         scope.cancel()
         onDisconnected()
     }

@@ -164,8 +164,9 @@ class Session(
 
     // ---- Lifecycle ---------------------------------------------------------
 
-    fun close() = closeWithError(IOException("session closed"))
-
+    fun close() {
+        runCatching { closeWithError(IOException("session closed")) }
+    }
     fun isClosed() = closed.get()
 
     fun closeWithError(err: Throwable) {
